@@ -40,3 +40,58 @@ jobs:
         with:
           name: cross-build-${{ matrix.arch }}-bin
           path: install/bin/cswinrt.exe
+
+  build-linux-native-cswinrt:
+    name: 'native: Build cswinrt for Linux'
+    runs-on: ubuntu-22.04
+    env:
+      CMAKE_COLOR_DIAGNOSTICS: 1
+      CLICOLOR_FORCE: 1
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build cswinrt (native Linux)
+        run: |
+          cmake -S src/cswinrt/ -B build/linux_native/ \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build build/linux_native/ -j2
+
+      - name: Smoke test
+        run: |
+          file build/linux_native/cswinrt
+          build/linux_native/cswinrt 2>&1 | head -3 || true
+
+      - name: Upload cswinrt
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-linux-x64-bin
+          path: build/linux_native/cswinrt
+
+  build-linux-dotnet-tools:
+    name: 'dotnet: Build IIDOptimizer & CsWinMD on Linux'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build IIDOptimizer
+        run: |
+          dotnet build src/Perf/IIDOptimizer/IIDOptimizer.csproj \
+            -p:IsDotnetBuild=true -c Release
+
+      - name: Smoke test IIDOptimizer
+        run: dotnet src/Perf/IIDOptimizer/bin/Release/net8.0/IIDOptimizer.dll 2>&1 || true
+
+      - name: Build CsWinMD
+        run: |
+          dotnet build src/Authoring/cswinmd/CsWinMD.csproj \
+            -p:IsDotnetBuild=true \
+            -p:SolutionDir=${{ github.workspace }}/src/ \
+            -c Release
+
+      - name: Smoke test CsWinMD
+        run: dotnet src/Authoring/cswinmd/bin/Release/net8.0/CsWinMD.dll 2>&1 || true
