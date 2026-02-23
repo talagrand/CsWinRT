@@ -258,6 +258,16 @@ namespace Generator
             return false;
         }
 
+        public static bool GetCsWinRTMidlCompat(this AnalyzerConfigOptionsProvider provider)
+        {
+            if (provider.GlobalOptions.TryGetValue("build_property.CsWinRTMidlCompat", out var midlCompatStr))
+            {
+                return bool.TryParse(midlCompatStr, out var midlCompat) && midlCompat;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Gets whether the <c>"CsWinRTAotExportsEnabled"</c> MSBuild property is defined.
         /// </summary>

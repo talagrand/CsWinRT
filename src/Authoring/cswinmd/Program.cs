@@ -47,6 +47,7 @@ namespace Generator
             string? windowsWinmd = null;
             bool? verbose = false;
             bool? nologo = false;
+            bool? midlCompat = false;
             string? a = null;
 
             for (int idx = 0; idx < args.Length; idx++)
@@ -84,9 +85,13 @@ namespace Generator
                 {
                     nologo = true;
                 }
+                else if (args[idx] == "-midlCompat")
+                {
+                    midlCompat = true;
+                }
             }
 
-            DoMain(i.ToArray(), o!, a!, sdkVersion, windowsWinmd, verbose, nologo);
+            DoMain(i.ToArray(), o!, a!, sdkVersion, windowsWinmd, verbose, nologo, midlCompat);
         }
 
         /// <summary>
@@ -99,8 +104,9 @@ namespace Generator
         /// <param name="windowsWinmd">Direct path to Windows.winmd (bypasses registry lookup, required on non-Windows)</param>
         /// <param name="verbose">Verbose logging</param>
         /// <param name="nologo">Don't print logo</param>
+        /// <param name="midlCompat">Enable MIDL-compatible output (naming conventions, vtable ordering)</param>
         /// Uses System.CommandLine.Dragonfruit
-        public static void DoMain(string[] i, string o, string a, string? sdkVersion, string? windowsWinmd, bool? verbose, bool? nologo)
+        public static void DoMain(string[] i, string o, string a, string? sdkVersion, string? windowsWinmd, bool? verbose, bool? nologo, bool? midlCompat)
         {
             if (!nologo.HasValue || !nologo.Value)
             {
@@ -153,10 +159,14 @@ namespace Generator
                 var config = (cp.GlobalOptions as ConfigOptions)!;
                 config.Values["build_property.AssemblyName"] = assemblyName;
                 config.Values["build_property.CsWinRTWinMDOutputFile"] = componentName;
-                config.Values["build_property.AssemblyVersion"] = "0.0.0.1";
+                config.Values["build_property.AssemblyVersion"] = "1.0.0.0";
                 config.Values["build_property.CsWinRTGeneratedFilesDir"] = outFolder;
                 config.Values["build_property.CsWinRTEnableLogging"] = "true";
                 config.Values["build_property.CsWinRTGenerateWinMDOnly"] = "true";
+                if (midlCompat.HasValue && midlCompat.Value)
+                {
+                    config.Values["build_property.CsWinRTMidlCompat"] = "true";
+                }
 
                 var driver = CSharpGeneratorDriver.Create(
                     generators: ImmutableArray.Create(g),

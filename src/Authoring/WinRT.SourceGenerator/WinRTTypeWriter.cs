@@ -294,6 +294,8 @@ namespace Generator
         private readonly Dictionary<string, TypeDeclaration> typeDefinitionMapping;
         private TypeDeclaration currentTypeDeclaration;
 
+        private readonly bool midlCompat;
+
         private readonly Dictionary<string, string> overridedRuntimeClassNameMappings;
 
         private Logger Logger { get; }
@@ -303,13 +305,15 @@ namespace Generator
             string version,
             MetadataBuilder metadataBuilder,
             Logger logger,
-            TypeMapper mapper)
+            TypeMapper mapper,
+            bool midlCompat = false)
         {
             this.assembly = assembly;
             this.version = version;
             this.metadataBuilder = metadataBuilder;
             Logger = logger;
             this.mapper = mapper;
+            this.midlCompat = midlCompat;
             typeReferenceMapping = new Dictionary<string, TypeReferenceHandle>(StringComparer.Ordinal);
             assemblyReferenceMapping = new Dictionary<string, EntityHandle>(StringComparer.Ordinal);
             typeDefinitionMapping = new Dictionary<string, TypeDeclaration>(StringComparer.Ordinal);

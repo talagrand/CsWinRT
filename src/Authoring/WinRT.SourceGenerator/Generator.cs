@@ -24,12 +24,14 @@ namespace Generator
         private readonly GeneratorExecutionContext context;
         private string tempFolder;
         private readonly TypeMapper mapper;
+        private readonly bool midlCompat;
 
         public ComponentGenerator(GeneratorExecutionContext context)
         {
             this.context = context;
             Logger = new Logger(context);
             mapper = new(context.AnalyzerConfigOptions.GetCsWinRTUseWindowsUIXamlProjections());
+            midlCompat = context.AnalyzerConfigOptions.GetCsWinRTMidlCompat();
             // TODO-WuxMux: output a module initializer that validates the MUX/WUX projection mode to ensure that things don't get out of sync.
         }
 
@@ -169,7 +171,8 @@ namespace Generator
                     version,
                     metadataBuilder,
                     Logger,
-                    mapper);
+                    mapper,
+                    midlCompat);
 
                 WinRTSyntaxReceiver syntaxReceiver = (WinRTSyntaxReceiver)context.SyntaxReceiver;
                 Logger.Log("Found " + syntaxReceiver.Declarations.Count + " types");
