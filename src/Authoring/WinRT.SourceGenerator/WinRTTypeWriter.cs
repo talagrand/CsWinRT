@@ -732,7 +732,7 @@ namespace Generator
 
             var propertySignature = new BlobBuilder();
             new BlobEncoder(propertySignature)
-                .PropertySignature(!isStatic)
+                .PropertySignature(!isStatic || isInterfaceParent)
                 .Parameters(
                     0,
                     returnType => EncodeReturnType(type, returnType),
