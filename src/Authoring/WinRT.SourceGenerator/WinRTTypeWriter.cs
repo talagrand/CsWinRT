@@ -763,6 +763,16 @@ namespace Generator
                 metadataBuilder.GetOrAddBlob(propertySignature));
             currentTypeDeclaration.AddProperty(symbol, propertyDefinitonHandle);
 
+            if (!isInterfaceParent)
+            {
+                // Emit VersionAttribute on class property definitions (not interface properties).
+                // Save/restore currentTypeDeclaration because AddDefaultVersionAttribute may
+                // call AddType for the attribute, which changes currentTypeDeclaration.
+                var savedTypeDeclaration = currentTypeDeclaration;
+                AddDefaultVersionAttribute(propertyDefinitonHandle);
+                currentTypeDeclaration = savedTypeDeclaration;
+            }
+
             if (hasSetMethod)
             {
                 string setMethodName = QualifiedName(@namespace, "put_" + typename);
