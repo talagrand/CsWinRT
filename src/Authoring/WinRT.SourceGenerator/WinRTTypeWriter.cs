@@ -2523,9 +2523,9 @@ namespace Generator
             return "I" + className +
                 type switch
                 {
-                    SynthesizedInterfaceType.Default => "Class",
+                    SynthesizedInterfaceType.Default => midlCompat ? "" : "Class",
                     SynthesizedInterfaceType.Factory => "Factory",
-                    SynthesizedInterfaceType.Static => "Static",
+                    SynthesizedInterfaceType.Static => midlCompat ? "Statics" : "Static",
                     _ => "",
                 };
         }
