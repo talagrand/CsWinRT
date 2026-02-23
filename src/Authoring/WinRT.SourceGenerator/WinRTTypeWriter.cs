@@ -1638,6 +1638,26 @@ namespace Generator
             AddCustomAttributes("Windows.Foundation.Metadata.StaticAttribute", types, arguments, parentHandle);
         }
 
+        private void AddMarshalingBehaviorAttribute(EntityHandle parentHandle)
+        {
+            // MarshalingType.Agile = 2
+            var enumType = Model.Compilation.GetTypeByMetadataName("Windows.Foundation.Metadata.MarshalingType");
+            AddCustomAttributes("Windows.Foundation.Metadata.MarshalingBehaviorAttribute",
+                new List<ITypeSymbol> { enumType },
+                new List<object> { (Int32)2 },
+                parentHandle);
+        }
+
+        private void AddThreadingAttribute(EntityHandle parentHandle)
+        {
+            // ThreadingModel.Both = 3
+            var enumType = Model.Compilation.GetTypeByMetadataName("Windows.Foundation.Metadata.ThreadingModel");
+            AddCustomAttributes("Windows.Foundation.Metadata.ThreadingAttribute",
+                new List<ITypeSymbol> { enumType },
+                new List<object> { (Int32)3 },
+                parentHandle);
+        }
+
         private void AddDefaultInterfaceImplAttribute(EntityHandle interfaceImplHandle)
         {
             AddCustomAttributes("Windows.Foundation.Metadata.DefaultAttribute", Array.Empty<ITypeSymbol>(), Array.Empty<object>(), interfaceImplHandle);
@@ -2110,7 +2130,7 @@ namespace Generator
         {
             Logger.Log("adding factory method: " + method.Name);
 
-            string methodName = "Create" + classSymbol.Name;
+            string methodName = midlCompat ? "CreateInstance" : "Create" + classSymbol.Name;
             Parameter[] parameters = Parameter.GetParameters(method);
             var methodDefinitionHandle = AddMethodDefinition(
                 methodName,
@@ -2260,9 +2280,11 @@ namespace Generator
             }
             else if (type.TypeKind == TypeKind.Class)
             {
-                typeAttributes |=
-                    TypeAttributes.Class |
-                    TypeAttributes.BeforeFieldInit;
+                typeAttributes |= TypeAttributes.Class;
+                if (!midlCompat)
+                {
+                    typeAttributes |= TypeAttributes.BeforeFieldInit;
+                }
 
                 // extends
                 // WinRT doesn't support projecting abstract classes.
@@ -2332,6 +2354,15 @@ namespace Generator
                     RecordWinRTRuntimeClassNameAttribute(type);
                 }
                 AddSynthesizedInterfaces(typeDeclaration);
+
+                if (midlCompat)
+                {
+                    AddMarshalingBehaviorAttribute(typeDeclaration.Handle);
+                    if (hasDefaultConstructor || hasConstructor)
+                    {
+                        AddThreadingAttribute(typeDeclaration.Handle);
+                    }
+                }
 
                 // No synthesized default interface generated
                 if (typeDeclaration.DefaultInterface == null && type.Interfaces.Length != 0)
