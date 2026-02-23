@@ -777,40 +777,81 @@ namespace Generator
                 currentTypeDeclaration = savedTypeDeclaration;
             }
 
-            if (hasSetMethod)
+            if (midlCompat)
             {
-                string setMethodName = QualifiedName(@namespace, "put_" + typename);
-                var setMethod = AddMethodDefinition(
-                    setMethodName,
-                    new Parameter[] { new Parameter(type, "value", ParameterAttributes.In) },
-                    null,
+                // MIDL convention: getter before setter (get at slot N, put at slot N+1)
+                string getMethodName = QualifiedName(@namespace, "get_" + typename);
+                var getMethod = AddMethodDefinition(
+                    getMethodName,
+                    new Parameter[0],
+                    type,
                     !isInterfaceParent && isStatic,
                     isInterfaceParent,
                     true,
                     isPublic);
-                currentTypeDeclaration.AddMethod(symbol, setMethodName, setMethod);
+                currentTypeDeclaration.AddMethod(symbol, getMethodName, getMethod);
 
                 metadataBuilder.AddMethodSemantics(
                     propertyDefinitonHandle,
-                    MethodSemanticsAttributes.Setter,
-                    setMethod);
+                    MethodSemanticsAttributes.Getter,
+                    getMethod);
+
+                if (hasSetMethod)
+                {
+                    string setMethodName = QualifiedName(@namespace, "put_" + typename);
+                    var setMethod = AddMethodDefinition(
+                        setMethodName,
+                        new Parameter[] { new Parameter(type, "value", ParameterAttributes.In) },
+                        null,
+                        !isInterfaceParent && isStatic,
+                        isInterfaceParent,
+                        true,
+                        isPublic);
+                    currentTypeDeclaration.AddMethod(symbol, setMethodName, setMethod);
+
+                    metadataBuilder.AddMethodSemantics(
+                        propertyDefinitonHandle,
+                        MethodSemanticsAttributes.Setter,
+                        setMethod);
+                }
             }
+            else
+            {
+                if (hasSetMethod)
+                {
+                    string setMethodName = QualifiedName(@namespace, "put_" + typename);
+                    var setMethod = AddMethodDefinition(
+                        setMethodName,
+                        new Parameter[] { new Parameter(type, "value", ParameterAttributes.In) },
+                        null,
+                        !isInterfaceParent && isStatic,
+                        isInterfaceParent,
+                        true,
+                        isPublic);
+                    currentTypeDeclaration.AddMethod(symbol, setMethodName, setMethod);
 
-            string getMethodName = QualifiedName(@namespace, "get_" + typename);
-            var getMethod = AddMethodDefinition(
-                getMethodName,
-                new Parameter[0],
-                type,
-                !isInterfaceParent && isStatic,
-                isInterfaceParent,
-                true,
-                isPublic);
-            currentTypeDeclaration.AddMethod(symbol, getMethodName, getMethod);
+                    metadataBuilder.AddMethodSemantics(
+                        propertyDefinitonHandle,
+                        MethodSemanticsAttributes.Setter,
+                        setMethod);
+                }
 
-            metadataBuilder.AddMethodSemantics(
-                propertyDefinitonHandle,
-                MethodSemanticsAttributes.Getter,
-                getMethod);
+                string getMethodName2 = QualifiedName(@namespace, "get_" + typename);
+                var getMethod2 = AddMethodDefinition(
+                    getMethodName2,
+                    new Parameter[0],
+                    type,
+                    !isInterfaceParent && isStatic,
+                    isInterfaceParent,
+                    true,
+                    isPublic);
+                currentTypeDeclaration.AddMethod(symbol, getMethodName2, getMethod2);
+
+                metadataBuilder.AddMethodSemantics(
+                    propertyDefinitonHandle,
+                    MethodSemanticsAttributes.Getter,
+                    getMethod2);
+            }
         }
 
         public void AddPropertyDeclaration(IPropertySymbol property, bool isInterfaceParent)
@@ -2348,24 +2389,49 @@ namespace Generator
         {
             Logger.Log("adding property reference: " + name);
 
-            if (setMethod)
+            if (midlCompat)
             {
-                var setMethodReference = AddMethodReference(
-                    "put_" + name,
-                    new Parameter[] { new Parameter(type, "value", ParameterAttributes.In) },
-                    null,
+                // MIDL convention: getter before setter
+                var getMethodReference = AddMethodReference(
+                    "get_" + name,
+                    new Parameter[0],
+                    type,
                     parent,
                     false);
-                currentTypeDeclaration.AddMethodReference(symbol, setMethodReference);
-            }
+                currentTypeDeclaration.AddMethodReference(symbol, getMethodReference);
 
-            var getMethodReference = AddMethodReference(
-                "get_" + name,
-                new Parameter[0],
-                type,
-                parent,
-                false);
-            currentTypeDeclaration.AddMethodReference(symbol, getMethodReference);
+                if (setMethod)
+                {
+                    var setMethodReference = AddMethodReference(
+                        "put_" + name,
+                        new Parameter[] { new Parameter(type, "value", ParameterAttributes.In) },
+                        null,
+                        parent,
+                        false);
+                    currentTypeDeclaration.AddMethodReference(symbol, setMethodReference);
+                }
+            }
+            else
+            {
+                if (setMethod)
+                {
+                    var setMethodReference = AddMethodReference(
+                        "put_" + name,
+                        new Parameter[] { new Parameter(type, "value", ParameterAttributes.In) },
+                        null,
+                        parent,
+                        false);
+                    currentTypeDeclaration.AddMethodReference(symbol, setMethodReference);
+                }
+
+                var getMethodReference = AddMethodReference(
+                    "get_" + name,
+                    new Parameter[0],
+                    type,
+                    parent,
+                    false);
+                currentTypeDeclaration.AddMethodReference(symbol, getMethodReference);
+            }
         }
 
         public void AddPropertyReference(IPropertySymbol property)
