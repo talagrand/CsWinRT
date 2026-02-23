@@ -51,6 +51,29 @@ namespace Generator
                     attr => string.CompareOrdinal(attr.AttributeClass.ToString(), "System.Runtime.InteropServices.WindowsRuntime.WriteOnlyArrayAttribute") == 0
                 ).Count() != 0;
 
+            // Fallback: when the attribute class doesn't resolve (e.g. CLI path without
+            // System.Runtime.InteropServices.WindowsRuntime.dll), check the syntax tree.
+            if (!isWriteOnlyArray && parameterSymbol.Type is IArrayTypeSymbol)
+            {
+                foreach (var syntaxRef in parameterSymbol.DeclaringSyntaxReferences)
+                {
+                    if (syntaxRef.GetSyntax() is Microsoft.CodeAnalysis.CSharp.Syntax.ParameterSyntax paramSyntax)
+                    {
+                        isWriteOnlyArray = paramSyntax.AttributeLists
+                            .SelectMany(al => al.Attributes)
+                            .Any(a =>
+                            {
+                                var name = a.Name.ToString();
+                                return name == "WriteOnlyArray" ||
+                                       name == "WriteOnlyArrayAttribute" ||
+                                       name.EndsWith(".WriteOnlyArray") ||
+                                       name.EndsWith(".WriteOnlyArrayAttribute");
+                            });
+                        if (isWriteOnlyArray) break;
+                    }
+                }
+            }
+
             Type = new Symbol(parameterSymbol.Type);
             Name = parameterSymbol.Name;
             Attributes = (parameterSymbol.RefKind == RefKind.Out || isWriteOnlyArray) ? ParameterAttributes.Out : ParameterAttributes.In;
