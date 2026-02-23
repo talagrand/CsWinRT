@@ -165,6 +165,7 @@ namespace Generator
         public Dictionary<ISymbol, InterfaceImplementationHandle> InterfaceImplDefinitions = new(SymbolEqualityComparer.Default);
         public Dictionary<string, List<ISymbol>> MethodsByName = new Dictionary<string, List<ISymbol>>(StringComparer.Ordinal);
         public Dictionary<ISymbol, string> OverloadedMethods = new(SymbolEqualityComparer.Default);
+        public HashSet<ISymbol> DefaultOverloadSymbols = new(SymbolEqualityComparer.Default);
         public List<ISymbol> CustomMappedSymbols = new();
         public HashSet<ISymbol> SymbolsWithAttributes = new(SymbolEqualityComparer.Default);
         public Dictionary<ISymbol, ISymbol> ClassInterfaceMemberMapping = new(SymbolEqualityComparer.Default);
@@ -1678,6 +1679,45 @@ namespace Generator
             AddCustomAttributes("Windows.Foundation.Metadata.OverloadAttribute", types, arguments, methodHandle);
         }
 
+        private void AddDefaultOverloadAttribute(EntityHandle methodHandle)
+        {
+            AddCustomAttributes("Windows.Foundation.Metadata.DefaultOverloadAttribute", Array.Empty<ITypeSymbol>(), Array.Empty<object>(), methodHandle);
+        }
+
+        private bool HasDefaultOverloadAttribute(ISymbol symbol)
+        {
+            // Check via semantic model
+            var attr = symbol.GetAttributes()
+                .FirstOrDefault(a =>
+                    a.AttributeClass?.ToDisplayString() == "Windows.Foundation.Metadata.DefaultOverloadAttribute");
+            if (attr != null)
+                return true;
+
+            // Fallback: check syntax tree (CLI path where attribute class may not resolve)
+            foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
+            {
+                if (syntaxRef.GetSyntax() is Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax methodSyntax)
+                {
+                    foreach (var attrList in methodSyntax.AttributeLists)
+                    {
+                        foreach (var a in attrList.Attributes)
+                        {
+                            var name = a.Name.ToString();
+                            if (name == "DefaultOverload" ||
+                                name == "DefaultOverloadAttribute" ||
+                                name.EndsWith(".DefaultOverload") ||
+                                name.EndsWith(".DefaultOverloadAttribute"))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private void AddOverloadAttributeForInterfaceMethods(TypeDeclaration interfaceTypeDeclaration)
         {
             // Generate unique names for any overloaded methods.
@@ -1696,6 +1736,22 @@ namespace Generator
                     if (skipFirstMethod)
                     {
                         skipFirstMethod = false;
+                        if (midlCompat && method is IMethodSymbol firstMethodSymbol &&
+                            interfaceTypeDeclaration.MethodDefinitions.ContainsKey(method))
+                        {
+                            var firstMethodHandle = interfaceTypeDeclaration.MethodDefinitions[method].First();
+                            // Emit [DefaultOverload] on the first (non-renamed) method if it has the attribute
+                            if (HasDefaultOverloadAttribute(firstMethodSymbol))
+                            {
+                                AddDefaultOverloadAttribute(firstMethodHandle);
+                                interfaceTypeDeclaration.DefaultOverloadSymbols.Add(method);
+                                Logger.Log("Emitting [DefaultOverload] on " + firstMethodSymbol.Name);
+                            }
+                            // Emit [OverloadAttribute("MethodName")] on the first method (MIDL always emits this)
+                            AddOverloadAttribute(firstMethodHandle, firstMethodSymbol.Name);
+                            interfaceTypeDeclaration.AddMethodOverload(method, firstMethodSymbol.Name);
+                            Logger.Log("Emitting [OverloadAttribute] on " + firstMethodSymbol.Name + " with name " + firstMethodSymbol.Name);
+                        }
                         continue;
                     }
 
@@ -1909,11 +1965,20 @@ namespace Generator
                     continue;
                 }
 
-                // DefaultOverloadAttribute is handled internally;
-                // skip user-applied instances to avoid duplicates in the winmd.
+                // DefaultOverloadAttribute is emitted by AddOverloadAttributeForInterfaceMethods;
+                // skip to avoid duplicates. In midlCompat mode, [DefaultOverload] is auto-applied
+                // to the first overload — applying it to a non-first overload is an error.
                 if (attributeType.ToString() == "Windows.Foundation.Metadata.DefaultOverloadAttribute" ||
                     attributeType.Name == "DefaultOverloadAttribute")
                 {
+                    if (midlCompat)
+                    {
+                        // In midlCompat mode, DefaultOverload is always the first overload.
+                        // User-applied DefaultOverload on non-first overloads would be silently
+                        // dropped, so surface it as an error instead.
+                        Logger.Log("error: [DefaultOverloadAttribute] on '" + attribute.ToString() + "' is not supported in midlCompat mode. " +
+                            "MIDL always marks the first overload as the default.");
+                    }
                     continue;
                 }
 
@@ -2902,6 +2967,12 @@ namespace Generator
                                 {
                                     AddOverloadAttribute(classMemberMethodDefinitions.First(), interfaceTypeDeclaration.OverloadedMethods[interfaceMember.Key]);
                                 }
+
+                                // Propagate DefaultOverloadAttribute from interface to class.
+                                if (interfaceTypeDeclaration.DefaultOverloadSymbols.Contains(interfaceMember.Key))
+                                {
+                                    AddDefaultOverloadAttribute(classMemberMethodDefinitions.First());
+                                }
                             }
                         }
                     }
@@ -2930,6 +3001,12 @@ namespace Generator
                             {
                                 AddOverloadAttribute(classMemberMethodDefinitions.First(), defaultInterfaceTypeDeclaration.OverloadedMethods[interfaceMember.Key]);
                             }
+
+                            // Propagate DefaultOverloadAttribute from interface to class.
+                            if (defaultInterfaceTypeDeclaration.DefaultOverloadSymbols.Contains(interfaceMember.Key))
+                            {
+                                AddDefaultOverloadAttribute(classMemberMethodDefinitions.First());
+                            }
                         }
                     }
                 }
@@ -2948,6 +3025,14 @@ namespace Generator
                                 classTypeDeclaration.MethodDefinitions[interfaceMember.Key].First(),
                                 staticInterfaceTypeDeclaration.OverloadedMethods[interfaceMember.Key]
                             );
+                        }
+
+                        // Propagate DefaultOverloadAttribute from static interface to class.
+                        if (classTypeDeclaration.MethodDefinitions.ContainsKey(interfaceMember.Key) &&
+                            staticInterfaceTypeDeclaration.DefaultOverloadSymbols.Contains(interfaceMember.Key))
+                        {
+                            AddDefaultOverloadAttribute(
+                                classTypeDeclaration.MethodDefinitions[interfaceMember.Key].First());
                         }
                     }
                 }
