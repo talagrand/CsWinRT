@@ -2637,6 +2637,15 @@ namespace Generator
             {
                 AddProjectedType(type);
             }
+            // Types from Windows platform assemblies should be treated as projected (external references),
+            // not as component types that get local TypeDef entries. This prevents e.g. IStringable from
+            // being defined locally in the output winmd.
+            else if (type.ContainingAssembly != null &&
+                     (string.CompareOrdinal(type.ContainingAssembly.Name, "Windows") == 0 ||
+                      type.ContainingAssembly.Name.StartsWith("Windows.", StringComparison.Ordinal)))
+            {
+                AddProjectedType(type);
+            }
             else
             {
                 AddComponentType(type);
