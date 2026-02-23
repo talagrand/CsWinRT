@@ -418,6 +418,24 @@ namespace Generator
 
         private EntityHandle GetTypeReference(string @namespace, string name, string assembly)
         {
+            // System.Private.CoreLib is the .NET internal runtime assembly; WinRT metadata
+            // should always reference System types from "mscorlib" for cross-language compatibility.
+            if (string.CompareOrdinal(assembly, "System.Private.CoreLib") == 0)
+            {
+                assembly = "mscorlib";
+            }
+
+            // Normalize Windows contract assembly names to "Windows.Foundation".
+            // The union Windows.WinMD splits types across contract assemblies
+            // (e.g., Windows.Foundation.FoundationContract, Windows), but WinRT metadata
+            // conventionally uses a single "Windows.Foundation" assembly reference.
+            if (assembly != null &&
+                (string.CompareOrdinal(assembly, "Windows") == 0 ||
+                 (assembly.StartsWith("Windows.", StringComparison.Ordinal) && string.CompareOrdinal(assembly, "Windows.Foundation") != 0)))
+            {
+                assembly = "Windows.Foundation";
+            }
+
             string fullname = QualifiedName(@namespace, name);
             if (typeReferenceMapping.ContainsKey(fullname))
             {
