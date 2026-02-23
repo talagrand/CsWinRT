@@ -111,6 +111,7 @@ namespace Generator
         public EntityHandle Handle;
         public int GenericIndex;
         public bool IsArray;
+        public bool IsValueType;
 
         public Symbol(ITypeSymbol type, bool isArray = false)
         {
@@ -120,11 +121,12 @@ namespace Generator
             IsArray = isArray;
         }
 
-        public Symbol(EntityHandle handle)
+        public Symbol(EntityHandle handle, bool isValueType = false)
         {
             Type = default;
             Handle = handle;
             GenericIndex = -1;
+            IsValueType = isValueType;
         }
 
         public Symbol(int genericIndex, bool isArray)
@@ -503,7 +505,7 @@ namespace Generator
         {
             if (symbol.IsHandle())
             {
-                typeEncoder.Type(symbol.Handle, false);
+                typeEncoder.Type(symbol.Handle, symbol.IsValueType);
             }
             else if (symbol.IsGeneric())
             {
@@ -548,6 +550,16 @@ namespace Generator
             else
             {
                 bool isValueType = symbol.Type.TypeKind == TypeKind.Enum || symbol.Type.TypeKind == TypeKind.Struct;
+                // WinRT enum/struct types from WinMD references may report TypeKind=Class
+                // but have BaseType=System.Enum or System.ValueType.
+                if (!isValueType && symbol.Type is INamedTypeSymbol namedSym)
+                {
+                    var baseTypeName = namedSym.BaseType?.ToDisplayString();
+                    if (baseTypeName == "System.Enum" || baseTypeName == "System.ValueType")
+                    {
+                        isValueType = true;
+                    }
+                }
                 if (mapper.HasMappingForType(QualifiedName(symbol.Type)))
                 {
                     (_, _, _, _, isValueType) = mapper.GetMappedType(QualifiedName(symbol.Type)).GetMapping(currentTypeDeclaration.Node);
@@ -1933,7 +1945,7 @@ namespace Generator
             var delegateSymbolType = eventType as INamedTypeSymbol;
             EntityHandle typeReferenceHandle = GetTypeSpecification(delegateSymbolType);
             EntityHandle eventRegistrationTokenTypeHandle = GetTypeReference("Windows.Foundation", "EventRegistrationToken", "Windows.Foundation.FoundationContract");
-            Symbol eventRegistrationToken = new Symbol(eventRegistrationTokenTypeHandle);
+            Symbol eventRegistrationToken = new Symbol(eventRegistrationTokenTypeHandle, isValueType: true);
 
             var eventDefinitionHandle = metadataBuilder.AddEvent(
                 EventAttributes.None,
@@ -2316,7 +2328,7 @@ namespace Generator
             Logger.Log("adding event reference:  " + eventName);
 
             EntityHandle eventRegistrationTokenTypeHandle = GetTypeReference("Windows.Foundation", "EventRegistrationToken", "Windows.Foundation.FoundationContract");
-            Symbol eventRegistrationToken = new Symbol(eventRegistrationTokenTypeHandle);
+            Symbol eventRegistrationToken = new Symbol(eventRegistrationTokenTypeHandle, isValueType: true);
 
             var addMethodReference = AddMethodReference(
                 "add_" + eventName,
