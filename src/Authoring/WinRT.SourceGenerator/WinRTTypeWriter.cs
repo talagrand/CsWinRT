@@ -1731,6 +1731,29 @@ namespace Generator
             AddGuidAttribute(parentHandle, guid);
         }
 
+        /// <summary>
+        /// Checks for a forward-declared type in the compilation with a matching name
+        /// that has an explicit [Guid] attribute (e.g. an internal interface stub).
+        /// This lets authors supply deterministic GUIDs for synthesized interfaces,
+        /// delegates, and user-defined interfaces without recreating MIDL's seed logic.
+        /// </summary>
+        private bool TryGetForwardDeclaredGuid(string qualifiedTypeName, out Guid guid)
+        {
+            guid = default;
+            var existingType = Model.Compilation.GetTypeByMetadataName(qualifiedTypeName);
+            if (existingType != null
+                && existingType.TryGetAttributeWithType(
+                    Model.Compilation.GetTypeByMetadataName("System.Runtime.InteropServices.GuidAttribute"),
+                    out AttributeData guidAttribute)
+                && guidAttribute is { ConstructorArguments.IsDefaultOrEmpty: false }
+                && guidAttribute.ConstructorArguments[0].Value is string guidString
+                && Guid.TryParse(guidString, out guid))
+            {
+                return true;
+            }
+            return false;
+        }
+
         private void AddGuidAttribute(EntityHandle parentHandle, ISymbol symbol)
         {
             if (symbol.TryGetAttributeWithType(Model.Compilation.GetTypeByMetadataName("System.Runtime.InteropServices.GuidAttribute"), out AttributeData guidAttribute)
@@ -2583,7 +2606,14 @@ namespace Generator
                 }
 
                 AddDefaultVersionAttribute(typeDefinitionHandle, GetVersion(classSymbol, true));
-                AddGuidAttribute(typeDefinitionHandle, interfaceName);
+                if (TryGetForwardDeclaredGuid(qualifiedInterfaceName, out Guid forwardDeclaredGuid))
+                {
+                    AddGuidAttribute(typeDefinitionHandle, forwardDeclaredGuid);
+                }
+                else
+                {
+                    AddGuidAttribute(typeDefinitionHandle, interfaceName);
+                }
                 AddExclusiveToAttribute(typeDefinitionHandle, classSymbol.ToString());
                 AddOverloadAttributeForInterfaceMethods(typeDeclaration);
 
