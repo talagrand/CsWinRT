@@ -1609,6 +1609,14 @@ namespace Generator
                             overloadedMethodName = userSpecifiedName;
                             Logger.Log("Using user-specified overload name for " + methodSymbol.Name + ": " + overloadedMethodName);
                         }
+                        else if (userOverloadAttr != null
+                            && userOverloadAttr.ApplicationSyntaxReference?.GetSyntax() is Microsoft.CodeAnalysis.CSharp.Syntax.AttributeSyntax attrSyntax
+                            && attrSyntax.ArgumentList?.Arguments.FirstOrDefault()?.Expression is Microsoft.CodeAnalysis.CSharp.Syntax.LiteralExpressionSyntax literal
+                            && literal.Token.Value is string syntaxName)
+                        {
+                            overloadedMethodName = syntaxName;
+                            Logger.Log("Using user-specified overload name (from syntax) for " + methodSymbol.Name + ": " + overloadedMethodName);
+                        }
                         else if (userOverloadAttr != null)
                         {
                             Logger.Log("warning: [OverloadAttribute] found on " + methodSymbol.Name + " but could not extract name; auto-generating");
@@ -1769,6 +1777,14 @@ namespace Generator
                 // OverloadAttribute is emitted by AddOverloadAttributeForInterfaceMethods;
                 // skip any user-applied instance to avoid duplicates in the winmd.
                 if (attributeType.ToString() == "Windows.Foundation.Metadata.OverloadAttribute")
+                {
+                    continue;
+                }
+
+                // DefaultOverloadAttribute is handled internally;
+                // skip user-applied instances to avoid duplicates in the winmd.
+                if (attributeType.ToString() == "Windows.Foundation.Metadata.DefaultOverloadAttribute" ||
+                    attributeType.Name == "DefaultOverloadAttribute")
                 {
                     continue;
                 }
